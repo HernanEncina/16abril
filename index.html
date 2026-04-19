@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Estados Filtrados</title>
+</head>
+<body>
+  <h1>Estados recomendados</h1>
+  <pre id="output">Loading...</pre>
+
+  <script>
+    fetch("resultado.txt?nocache=" + new Date().getTime())
+      .then(res => res.text())
+      .then(data => {
+        document.getElementById("output").textContent = data;
+      });
+  </script>
+</body>
+</html>

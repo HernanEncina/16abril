@@ -1,0 +1,57 @@
+version: 0.2
+
+env:
+  variables:
+    EC2_PATH: /home/ec2-user/project
+
+phases:
+  install:
+    commands:
+      - echo "Installing dependencies..."
+      - yum install -y python3 openssh-clients
+
+  pre_build:
+    commands:
+      - echo "Setting up SSH key from environment variable..."
+      - echo "$SSH_KEY" > key.pem
+      - chmod 600 key.pem
+
+  build:
+    commands:
+      - echo "Running Python processing..."
+      - python3 process.py
+
+      - echo "Validating output..."
+      - test -f resultado.txt || (echo "resultado.txt not found" && exit 1)
+
+      - echo "Generated output:"
+      - cat resultado.txt
+
+  post_build:
+    commands:
+      - echo "Uploading to S3..."
+      - aws s3 cp index.html s3://$BUCKET_NAME/index.html
+      - aws s3 cp resultado.txt s3://$BUCKET_NAME/resultado.txt
+
+      - echo "Preparing EC2 directory..."
+      - ssh -o StrictHostKeyChecking=no -i key.pem ec2-user@$EC2_IP "rm -rf $EC2_PATH && mkdir -p $EC2_PATH"
+
+      - echo "Copying project to EC2..."
+      - scp -o StrictHostKeyChecking=no -i key.pem -r ./* ec2-user@$EC2_IP:$EC2_PATH/
+
+      - echo "Executing script on EC2..."
+      - |
+        ssh -o StrictHostKeyChecking=no -i key.pem ec2-user@$EC2_IP << 'EOF'
+          set -e
+          cd /home/ec2-user/project
+
+          echo "Running process.py on EC2..."
+          python3 process.py
+
+          echo "Result on EC2:"
+          cat resultado.txt
+        EOF
+
+artifacts:
+  files:
+    - '**/*'
